@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PoC Konsumen API (Aplikasi B)</title>
+    <!-- Gunakan Tailwind CSS untuk tampilan yang bersih dan profesional -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-radius: 50%;
+            border-top: 3px solid #3498db;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-100 p-8 font-sans">
+
+    <div class="max-w-5xl mx-auto">
+        <!-- Header -->
+        <div class="bg-blue-600 text-white p-6 rounded-t-lg shadow-md">
+            <h1 class="text-2xl font-bold">Aplikasi Laporan Keuangan B (Consumer)</h1>
+            <p class="text-sm opacity-90 mt-1">PoC Menarik Data dari API Gateway KANMIS / Toko A</p>
+        </div>
+
+        <!-- Konten Utama -->
+        <div class="bg-white p-6 rounded-b-lg shadow-md">
+            
+            <!-- Form Input -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 bg-slate-50 p-4 rounded border border-slate-200">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">X-API-KEY</label>
+                    <input type="text" id="apiKey" value="secret_toko_a_2026" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Masukkan API Key">
+                    <p class="text-xs text-slate-500 mt-1">Untuk testing gagal, coba salahkan key ini.</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1">Tanggal Data</label>
+                    <input type="date" id="tanggal" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
+                </div>
+                <div class="flex items-end">
+                    <button id="btnFetch" onclick="fetchData()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition duration-200 flex justify-center items-center gap-2">
+                        <span>Tarik Data</span>
+                        <div id="loader" class="loader hidden"></div>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Pesan Notifikasi -->
+            <div id="alertBox" class="hidden mb-6 p-4 rounded text-sm font-semibold"></div>
+
+            <!-- Area Hasil (Tabel & Metadata) -->
+            <div id="resultArea" class="hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-bold text-slate-800">Hasil Tarik Data Transaksi</h2>
+                    <div class="flex gap-4 text-sm">
+                        <div class="bg-green-100 text-green-800 px-3 py-1 rounded-full font-semibold border border-green-200">
+                            Total Records: <span id="metaRecords">0</span>
+                        </div>
+                        <div class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-semibold border border-blue-200">
+                            Total Omset: Rp <span id="metaOmset">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-slate-200 rounded">
+                        <thead class="bg-slate-50 border-b border-slate-200">
+                            <tr>
+                                <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-slate-600">Kode Transaksi</th>
+                                <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-slate-600">Waktu</th>
+                                <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-slate-600">Total Nominal</th>
+                                <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-slate-600">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-slate-200">
+                            <!-- Data akan dimuat disini via JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Raw JSON Toggle -->
+                <div class="mt-6">
+                    <button onclick="document.getElementById('rawJsonContainer').classList.toggle('hidden')" class="text-sm text-blue-600 hover:underline">
+                        Lihat Raw JSON Response
+                    </button>
+                    <div id="rawJsonContainer" class="hidden mt-2">
+                        <pre id="rawJson" class="bg-slate-800 text-green-400 p-4 rounded text-xs overflow-x-auto"></pre>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Set default date to today
+        document.getElementById('tanggal').valueAsDate = new Date();
+
+        async function fetchData() {
+            const apiKey = document.getElementById('apiKey').value;
+            const tanggal = document.getElementById('tanggal').value;
+            
+            // UI Elements
+            const btn = document.getElementById('btnFetch');
+            const loader = document.getElementById('loader');
+            const alertBox = document.getElementById('alertBox');
+            const resultArea = document.getElementById('resultArea');
+            const tableBody = document.getElementById('tableBody');
+            const rawJson = document.getElementById('rawJson');
+
+            // Reset UI
+            alertBox.classList.add('hidden');
+            resultArea.classList.add('hidden');
+            loader.classList.remove('hidden');
+            btn.disabled = true;
+
+            try {
+                // Konfigurasi Endpoint (Karena file html ini akan ditaruh di public folder laravel, pathnya bisa relatif atau pakai full URL)
+                const apiUrl = `/api/v1/transaksi/harian?tanggal=${tanggal}`;
+                
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'X-API-KEY': apiKey
+                    }
+                });
+
+                const data = await response.json();
+                
+                // Tampilkan Raw JSON
+                rawJson.textContent = JSON.stringify(data, null, 2);
+
+                if (!response.ok) {
+                    // Tampilkan Error dari API
+                    alertBox.className = 'mb-6 p-4 rounded text-sm font-semibold bg-red-100 text-red-700 border border-red-200';
+                    alertBox.textContent = `Error ${response.status}: ${data.message || 'Terjadi Kesalahan'}`;
+                    alertBox.classList.remove('hidden');
+                    document.getElementById('rawJsonContainer').classList.remove('hidden');
+                    resultArea.classList.remove('hidden');
+                    document.querySelector('#resultArea > div:nth-child(1)').classList.add('hidden'); // Sembunyikan header tabel
+                    document.querySelector('.overflow-x-auto').classList.add('hidden'); // Sembunyikan tabel
+                } else {
+                    // Tampilkan Data Sukses
+                    alertBox.className = 'mb-6 p-4 rounded text-sm font-semibold bg-green-100 text-green-700 border border-green-200';
+                    alertBox.textContent = 'Berhasil menarik data dari API Gateway!';
+                    alertBox.classList.remove('hidden');
+
+                    // Kembalikan visibilitas tabel jika sebelumnya error
+                    document.querySelector('#resultArea > div:nth-child(1)').classList.remove('hidden'); 
+                    document.querySelector('.overflow-x-auto').classList.remove('hidden'); 
+                    
+                    // Update Meta
+                    document.getElementById('metaRecords').textContent = data.meta.total_records;
+                    document.getElementById('metaOmset').textContent = new Intl.NumberFormat('id-ID').format(data.meta.total_omset);
+
+                    // Render Table
+                    tableBody.innerHTML = '';
+                    if (data.data.length === 0) {
+                        tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-slate-500">Tidak ada data transaksi pada tanggal tersebut</td></tr>`;
+                    } else {
+                        data.data.forEach(item => {
+                            const tr = document.createElement('tr');
+                            tr.className = 'hover:bg-slate-50';
+                            tr.innerHTML = `
+                                <td class="py-3 px-4 font-mono text-sm text-blue-600">${item.kode_transaksi}</td>
+                                <td class="py-3 px-4 text-sm">${item.waktu_transaksi}</td>
+                                <td class="py-3 px-4 text-sm font-semibold">Rp ${new Intl.NumberFormat('id-ID').format(item.total_nominal)}</td>
+                                <td class="py-3 px-4 text-sm">
+                                    <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold">${item.status}</span>
+                                </td>
+                            `;
+                            tableBody.appendChild(tr);
+                        });
+                    }
+
+                    resultArea.classList.remove('hidden');
+                }
+
+            } catch (error) {
+                alertBox.className = 'mb-6 p-4 rounded text-sm font-semibold bg-red-100 text-red-700 border border-red-200';
+                alertBox.textContent = `Gagal melakukan request: Pastikan server Laravel berjalan (php artisan serve). Detail: ${error.message}`;
+                alertBox.classList.remove('hidden');
+            } finally {
+                loader.classList.add('hidden');
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
