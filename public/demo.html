@@ -3,196 +3,392 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PoC Konsumen API (Aplikasi B)</title>
-    <!-- Gunakan Tailwind CSS untuk tampilan yang bersih dan profesional -->
+    <title>SI-ISPO | Laporan Keuangan</title>
     <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
         .loader {
-            border: 3px solid #f3f3f3;
+            border: 3px solid #e5e7eb;
             border-radius: 50%;
-            border-top: 3px solid #3498db;
+            border-top: 3px solid #2563eb;
             width: 20px;
             height: 20px;
             animation: spin 1s linear infinite;
         }
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
         }
     </style>
 </head>
-<body class="bg-slate-100 p-8 font-sans">
 
-    <div class="max-w-5xl mx-auto">
-        <!-- Header -->
-        <div class="bg-blue-600 text-white p-6 rounded-t-lg shadow-md">
-            <h1 class="text-2xl font-bold">Aplikasi Laporan Keuangan B (Consumer)</h1>
-            <p class="text-sm opacity-90 mt-1">PoC Menarik Data dari API Gateway KANMIS / Toko A</p>
-        </div>
+<body class="bg-slate-100 text-slate-800">
 
-        <!-- Konten Utama -->
-        <div class="bg-white p-6 rounded-b-lg shadow-md">
-            
-            <!-- Form Input -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 bg-slate-50 p-4 rounded border border-slate-200">
-                <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">X-API-KEY</label>
-                    <input type="text" id="apiKey" value="secret_toko_a_2026" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Masukkan API Key">
-                    <p class="text-xs text-slate-500 mt-1">Untuk testing gagal, coba salahkan key ini.</p>
-                </div>
-                <div>
-                    <label class="block text-sm font-semibold text-slate-700 mb-1">Tanggal Data</label>
-                    <input type="date" id="tanggal" class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500">
-                </div>
-                <div class="flex items-end">
-                    <button id="btnFetch" onclick="fetchData()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded transition duration-200 flex justify-center items-center gap-2">
-                        <span>Tarik Data</span>
-                        <div id="loader" class="loader hidden"></div>
-                    </button>
-                </div>
+    <!-- HEADER SI-ISPO -->
+    <header class="bg-blue-700 text-white shadow">
+        <div class="max-w-7xl mx-auto px-6 py-5 flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <h1 class="text-2xl font-bold tracking-wide">SI-ISPO</h1>
+                <p class="text-blue-100 text-sm mt-1">
+                    Sistem Informasi Laporan Keuangan
+                </p>
             </div>
 
-            <!-- Pesan Notifikasi -->
-            <div id="alertBox" class="hidden mb-6 p-4 rounded text-sm font-semibold"></div>
+            <div class="text-sm bg-blue-800 px-4 py-2 rounded-lg">
+                Aplikasi Consumer
+            </div>
+        </div>
+    </header>
 
-            <!-- Area Hasil (Tabel & Metadata) -->
-            <div id="resultArea" class="hidden">
-                <div class="flex justify-between items-center mb-4">
-                    <h2 class="text-lg font-bold text-slate-800">Hasil Tarik Data Transaksi</h2>
-                    <div class="flex gap-4 text-sm">
-                        <div class="bg-green-100 text-green-800 px-3 py-1 rounded-full font-semibold border border-green-200">
-                            Total Records: <span id="metaRecords">0</span>
-                        </div>
-                        <div class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-semibold border border-blue-200">
-                            Total Omset: Rp <span id="metaOmset">0</span>
-                        </div>
+    <!-- NAVIGASI -->
+    <nav class="bg-white border-b border-slate-200">
+        <div class="max-w-7xl mx-auto px-6 py-3 flex flex-wrap gap-6 text-sm">
+            <a href="#dashboard" class="font-semibold text-blue-700">
+                Ringkasan API
+            </a>
+            <a href="#pengambilan-data" class="text-slate-600 hover:text-blue-700">
+                Pengambilan Data
+            </a>
+            <a href="#hasil-data" class="text-slate-600 hover:text-blue-700">
+                Hasil Transaksi
+            </a>
+        </div>
+    </nav>
+
+    <main id="dashboard" class="max-w-7xl mx-auto p-6 space-y-6">
+
+        <!-- JUDUL HALAMAN -->
+        <section>
+            <p class="text-sm text-blue-700 font-semibold">
+                INTEGRASI SISTEM
+            </p>
+            <h2 class="text-3xl font-bold mt-2">
+                Laporan Keuangan
+            </h2>
+            <p class="text-slate-500 mt-2">
+                Mengambil data transaksi Toko A melalui API Gateway KANMIS.
+            </p>
+        </section>
+
+        <!-- INFORMASI INTEGRASI -->
+        <section class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <p class="text-sm text-slate-500">Sumber Data</p>
+                <h3 class="text-lg font-bold mt-2">KANMIS / Toko A</h3>
+                <p class="text-sm text-slate-500 mt-2">
+                    Data diperoleh melalui endpoint API.
+                </p>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <p class="text-sm text-slate-500">Metode Integrasi</p>
+                <h3 class="text-lg font-bold mt-2">REST API</h3>
+                <p class="text-sm text-slate-500 mt-2">
+                    Request HTTP GET dengan API Key.
+                </p>
+            </div>
+
+            <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                <p class="text-sm text-slate-500">Batas Akses</p>
+                <h3 class="text-lg font-bold mt-2">Data Transaksi</h3>
+                <p class="text-sm text-slate-500 mt-2">
+                    Tidak meminta akses langsung ke database.
+                </p>
+            </div>
+
+        </section>
+
+        <!-- FORM REQUEST -->
+        <section id="pengambilan-data"
+                 class="bg-white rounded-xl border border-slate-200 shadow-sm">
+
+            <div class="p-6 border-b border-slate-200">
+                <h3 class="text-xl font-bold">Pengambilan Data dari API</h3>
+                <p class="text-sm text-slate-500 mt-2">
+                    Masukkan kredensial dan tanggal untuk menguji endpoint.
+                </p>
+            </div>
+
+            <div class="p-6">
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+                    <div>
+                        <label for="apiKey"
+                               class="block text-sm font-semibold mb-2">
+                            X-API-KEY
+                        </label>
+                        <input type="password" id="apiKey"
+                               autocomplete="off"
+                               class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                               placeholder="Masukkan API Key">
+                        <label class="flex items-center gap-2 mt-3 text-sm text-slate-500">
+                            <input type="checkbox"
+                                   onclick="document.getElementById('apiKey').type = this.checked ? 'text' : 'password'">
+                            Tampilkan API Key
+                        </label>
                     </div>
+
+                    <div>
+                        <label for="tanggal"
+                               class="block text-sm font-semibold mb-2">
+                            Tanggal Transaksi
+                        </label>
+                        <input type="date" id="tanggal"
+                               class="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="flex items-end">
+                        <button id="btnFetch" onclick="fetchData()"
+                                class="w-full bg-blue-700 hover:bg-blue-800 disabled:opacity-60 text-white font-semibold py-3 px-5 rounded-lg transition flex justify-center items-center gap-2">
+                            <span>Tarik Data</span>
+                            <div id="loader" class="loader hidden"></div>
+                        </button>
+                    </div>
+
+                </div>
+
+                <p class="text-xs text-slate-500 mt-4">
+                    Gunakan API Key yang dikonfigurasi pada server KANMIS.
+                    Jangan membagikan key melalui tangkapan layar atau laporan publik.
+                </p>
+            </div>
+        </section>
+
+        <!-- NOTIFIKASI REQUEST -->
+        <section id="alertBox"
+                 class="hidden p-4 rounded-lg text-sm font-semibold"
+                 aria-live="polite">
+        </section>
+
+        <!-- HASIL API -->
+        <section id="resultArea"
+                 class="hidden space-y-5">
+
+            <div id="resultSummary"
+                 class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <p class="text-sm text-slate-500">Total Records</p>
+                    <p class="text-3xl font-bold mt-2">
+                        <span id="metaRecords">0</span>
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+                    <p class="text-sm text-slate-500">Total Omzet</p>
+                    <p class="text-3xl font-bold text-blue-700 mt-2">
+                        Rp <span id="metaOmset">0</span>
+                    </p>
+                </div>
+
+            </div>
+
+            <div id="hasil-data"
+                 class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+
+                <div class="p-6 border-b border-slate-200">
+                    <h3 class="text-xl font-bold">Hasil Transaksi</h3>
+                    <p class="text-sm text-slate-500 mt-2">
+                        Data yang dikembalikan oleh API Gateway.
+                    </p>
                 </div>
 
                 <div class="overflow-x-auto">
-                    <table class="min-w-full bg-white border border-slate-200 rounded">
+                    <table class="min-w-full text-left">
                         <thead class="bg-slate-50 border-b border-slate-200">
                             <tr>
-                                <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-slate-600">Kode Transaksi</th>
-                                <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-slate-600">Waktu</th>
-                                <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-slate-600">Total Nominal</th>
-                                <th class="text-left py-3 px-4 uppercase font-semibold text-sm text-slate-600">Status</th>
+                                <th class="py-3 px-5 text-xs uppercase text-slate-500">Kode Transaksi</th>
+                                <th class="py-3 px-5 text-xs uppercase text-slate-500">Waktu</th>
+                                <th class="py-3 px-5 text-xs uppercase text-slate-500">Total Nominal</th>
+                                <th class="py-3 px-5 text-xs uppercase text-slate-500">Status</th>
                             </tr>
                         </thead>
-                        <tbody id="tableBody" class="divide-y divide-slate-200">
-                            <!-- Data akan dimuat disini via JavaScript -->
+                        <tbody id="tableBody" class="divide-y divide-slate-100">
                         </tbody>
                     </table>
                 </div>
 
-                <!-- Raw JSON Toggle -->
-                <div class="mt-6">
-                    <button onclick="document.getElementById('rawJsonContainer').classList.toggle('hidden')" class="text-sm text-blue-600 hover:underline">
-                        Lihat Raw JSON Response
-                    </button>
-                    <div id="rawJsonContainer" class="hidden mt-2">
-                        <pre id="rawJson" class="bg-slate-800 text-green-400 p-4 rounded text-xs overflow-x-auto"></pre>
-                    </div>
+            </div>
+
+            <div class="bg-slate-900 rounded-xl overflow-hidden">
+                <button type="button"
+                        onclick="document.getElementById('rawJsonContainer').classList.toggle('hidden')"
+                        class="w-full text-left text-white font-semibold p-4 hover:bg-slate-800">
+                    Lihat Detail Respons API (JSON)
+                </button>
+                <div id="rawJsonContainer" class="hidden p-4 border-t border-slate-700">
+                    <pre id="rawJson" class="text-green-300 text-xs overflow-x-auto whitespace-pre-wrap"></pre>
                 </div>
             </div>
 
-        </div>
-    </div>
+        </section>
 
-    <script>
-        // Set default date to today
-        document.getElementById('tanggal').valueAsDate = new Date();
+        <footer class="text-center text-sm text-slate-500 py-5">
+            SI-ISPO Consumer · Proof of Concept Integrasi API Gateway
+        </footer>
 
-        async function fetchData() {
-            const apiKey = document.getElementById('apiKey').value;
-            const tanggal = document.getElementById('tanggal').value;
-            
-            // UI Elements
-            const btn = document.getElementById('btnFetch');
-            const loader = document.getElementById('loader');
-            const alertBox = document.getElementById('alertBox');
-            const resultArea = document.getElementById('resultArea');
-            const tableBody = document.getElementById('tableBody');
-            const rawJson = document.getElementById('rawJson');
+    </main>
 
-            // Reset UI
-            alertBox.classList.add('hidden');
-            resultArea.classList.add('hidden');
-            loader.classList.remove('hidden');
-            btn.disabled = true;
+<script>
+    // Gunakan tanggal lokal browser untuk default tanggal.
+    // Tanggal input date menggunakan format YYYY-MM-DD.
+    function tanggalLokalHariIni() {
+        const sekarang = new Date();
+        const tahun = sekarang.getFullYear();
+        const bulan = String(sekarang.getMonth() + 1).padStart(2, '0');
+        const hari = String(sekarang.getDate()).padStart(2, '0');
 
-            try {
-                // Konfigurasi Endpoint (Karena file html ini akan ditaruh di public folder laravel, pathnya bisa relatif atau pakai full URL)
-                const apiUrl = `/api/v1/transaksi/harian?tanggal=${tanggal}`;
-                
-                const response = await fetch(apiUrl, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json',
-                        'X-API-KEY': apiKey
-                    }
-                });
+        return `${tahun}-${bulan}-${hari}`;
+    }
 
-                const data = await response.json();
-                
-                // Tampilkan Raw JSON
-                rawJson.textContent = JSON.stringify(data, null, 2);
+    document.getElementById('tanggal').value = tanggalLokalHariIni();
 
-                if (!response.ok) {
-                    // Tampilkan Error dari API
-                    alertBox.className = 'mb-6 p-4 rounded text-sm font-semibold bg-red-100 text-red-700 border border-red-200';
-                    alertBox.textContent = `Error ${response.status}: ${data.message || 'Terjadi Kesalahan'}`;
-                    alertBox.classList.remove('hidden');
-                    document.getElementById('rawJsonContainer').classList.remove('hidden');
-                    resultArea.classList.remove('hidden');
-                    document.querySelector('#resultArea > div:nth-child(1)').classList.add('hidden'); // Sembunyikan header tabel
-                    document.querySelector('.overflow-x-auto').classList.add('hidden'); // Sembunyikan tabel
-                } else {
-                    // Tampilkan Data Sukses
-                    alertBox.className = 'mb-6 p-4 rounded text-sm font-semibold bg-green-100 text-green-700 border border-green-200';
-                    alertBox.textContent = 'Berhasil menarik data dari API Gateway!';
-                    alertBox.classList.remove('hidden');
+    async function fetchData() {
+        const apiKey = document.getElementById('apiKey').value.trim();
+        const tanggal = document.getElementById('tanggal').value;
 
-                    // Kembalikan visibilitas tabel jika sebelumnya error
-                    document.querySelector('#resultArea > div:nth-child(1)').classList.remove('hidden'); 
-                    document.querySelector('.overflow-x-auto').classList.remove('hidden'); 
-                    
-                    // Update Meta
-                    document.getElementById('metaRecords').textContent = data.meta.total_records;
-                    document.getElementById('metaOmset').textContent = new Intl.NumberFormat('id-ID').format(data.meta.total_omset);
+        const btn = document.getElementById('btnFetch');
+        const loader = document.getElementById('loader');
+        const alertBox = document.getElementById('alertBox');
+        const resultArea = document.getElementById('resultArea');
+        const resultSummary = document.getElementById('resultSummary');
+        const tableBody = document.getElementById('tableBody');
+        const rawJson = document.getElementById('rawJson');
+        const rawJsonContainer = document.getElementById('rawJsonContainer');
 
-                    // Render Table
-                    tableBody.innerHTML = '';
-                    if (data.data.length === 0) {
-                        tableBody.innerHTML = `<tr><td colspan="4" class="text-center py-4 text-slate-500">Tidak ada data transaksi pada tanggal tersebut</td></tr>`;
-                    } else {
-                        data.data.forEach(item => {
-                            const tr = document.createElement('tr');
-                            tr.className = 'hover:bg-slate-50';
-                            tr.innerHTML = `
-                                <td class="py-3 px-4 font-mono text-sm text-blue-600">${item.kode_transaksi}</td>
-                                <td class="py-3 px-4 text-sm">${item.waktu_transaksi}</td>
-                                <td class="py-3 px-4 text-sm font-semibold">Rp ${new Intl.NumberFormat('id-ID').format(item.total_nominal)}</td>
-                                <td class="py-3 px-4 text-sm">
-                                    <span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold">${item.status}</span>
-                                </td>
-                            `;
-                            tableBody.appendChild(tr);
-                        });
-                    }
+        alertBox.classList.add('hidden');
+        resultArea.classList.add('hidden');
+        resultSummary.classList.remove('hidden');
+        tableBody.innerHTML = '';
+        rawJson.textContent = '';
+        rawJsonContainer.classList.add('hidden');
 
-                    resultArea.classList.remove('hidden');
-                }
-
-            } catch (error) {
-                alertBox.className = 'mb-6 p-4 rounded text-sm font-semibold bg-red-100 text-red-700 border border-red-200';
-                alertBox.textContent = `Gagal melakukan request: Pastikan server Laravel berjalan (php artisan serve). Detail: ${error.message}`;
-                alertBox.classList.remove('hidden');
-            } finally {
-                loader.classList.add('hidden');
-                btn.disabled = false;
-            }
+        if (!tanggal) {
+            alertBox.className =
+                'p-4 rounded-lg text-sm font-semibold bg-amber-100 text-amber-800 border border-amber-200';
+            alertBox.textContent = 'Pilih tanggal transaksi terlebih dahulu.';
+            alertBox.classList.remove('hidden');
+            return;
         }
-    </script>
+
+        btn.disabled = true;
+        loader.classList.remove('hidden');
+
+        try {
+            const apiUrl =
+                `/api/v1/transaksi/harian?tanggal=${encodeURIComponent(tanggal)}`;
+
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-API-KEY': apiKey
+                }
+            });
+
+            const contentType = response.headers.get('content-type') || '';
+            let data;
+
+            if (contentType.includes('application/json')) {
+                data = await response.json();
+            } else {
+                throw new Error(
+                    `Server mengembalikan respons non-JSON (HTTP ${response.status}).`
+                );
+            }
+
+            rawJson.textContent = JSON.stringify(data, null, 2);
+
+            if (!response.ok) {
+                alertBox.className =
+                    'p-4 rounded-lg text-sm font-semibold bg-red-100 text-red-700 border border-red-200';
+                alertBox.textContent =
+                    `HTTP ${response.status}: ${data.message || 'Request ditolak oleh API.'}`;
+                alertBox.classList.remove('hidden');
+
+                // Saat gagal, tampilkan detail respons untuk kebutuhan PoC.
+                resultArea.classList.remove('hidden');
+                resultSummary.classList.add('hidden');
+                document.getElementById('hasil-data').classList.add('hidden');
+                rawJsonContainer.classList.remove('hidden');
+                return;
+            }
+
+            alertBox.className =
+                'p-4 rounded-lg text-sm font-semibold bg-green-100 text-green-700 border border-green-200';
+            alertBox.textContent =
+                `HTTP ${response.status} — Berhasil mengambil data dari API Gateway.`;
+            alertBox.classList.remove('hidden');
+
+            document.getElementById('hasil-data').classList.remove('hidden');
+            resultSummary.classList.remove('hidden');
+
+            const records = data.meta?.total_records ?? 0;
+            const omset = data.meta?.total_omset ?? 0;
+            const transaksi = Array.isArray(data.data) ? data.data : [];
+
+            document.getElementById('metaRecords').textContent = records;
+            document.getElementById('metaOmset').textContent =
+                new Intl.NumberFormat('id-ID').format(omset);
+
+            if (transaksi.length === 0) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="4" class="text-center py-8 px-5 text-slate-500">
+                            Tidak ada transaksi SUCCESS pada tanggal tersebut.
+                        </td>
+                    </tr>`;
+            } else {
+                transaksi.forEach(item => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-50';
+
+                    const kode = document.createElement('td');
+                    kode.className = 'py-3 px-5 font-mono text-sm text-blue-700';
+                    kode.textContent = item.kode_transaksi ?? '-';
+
+                    const waktu = document.createElement('td');
+                    waktu.className = 'py-3 px-5 text-sm';
+                    waktu.textContent = item.waktu_transaksi ?? '-';
+
+                    const nominal = document.createElement('td');
+                    nominal.className = 'py-3 px-5 text-sm font-semibold';
+                    nominal.textContent =
+                        'Rp ' + new Intl.NumberFormat('id-ID')
+                            .format(Number(item.total_nominal) || 0);
+
+                    const statusCell = document.createElement('td');
+                    statusCell.className = 'py-3 px-5 text-sm';
+
+                    const status = document.createElement('span');
+                    status.className =
+                        'bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold';
+                    status.textContent = item.status ?? '-';
+
+                    statusCell.appendChild(status);
+                    tr.append(kode, waktu, nominal, statusCell);
+                    tableBody.appendChild(tr);
+                });
+            }
+
+            resultArea.classList.remove('hidden');
+
+        } catch (error) {
+            alertBox.className =
+                'p-4 rounded-lg text-sm font-semibold bg-red-100 text-red-700 border border-red-200';
+            alertBox.textContent = `Gagal melakukan request: ${error.message}`;
+            alertBox.classList.remove('hidden');
+
+        } finally {
+            loader.classList.add('hidden');
+            btn.disabled = false;
+        }
+    }
+</script>
 </body>
 </html>
