@@ -36,4 +36,20 @@ class TransaksiGatewayController extends Controller
             'data' => $transaksis
         ]);
     }
+
+    public function pegawai()
+    {
+        // Mengambil data pegawai dari SQL Server db_toko_a
+        $pegawai = DB::table('db_pegawai')
+            ->select('id', 'nama_pegawai', 'jabatan', 'gaji')
+            ->get();
+
+        return response()->json([
+            'status' => 'success',
+            'meta' => [
+                'total_records' => $pegawai->count()
+            ],
+            'data' => $pegawai
+        ]);
+    }
 }
