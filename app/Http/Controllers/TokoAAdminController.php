@@ -43,6 +43,24 @@ class TokoAAdminController extends Controller
         return view('admin.pegawai', compact('pegawai'));
     }
 
+    public function simpanPegawai(Request $request)
+    {
+        $data = $request->validate([
+            'nama_pegawai' => ['required', 'string', 'max:100'],
+            'jabatan' => ['required', 'string', 'max:50'],
+            'gaji' => ['required', 'numeric', 'min:0'],
+        ]);
+
+        DB::table('db_pegawai')->insert([
+            'nama_pegawai' => $data['nama_pegawai'],
+            'jabatan' => $data['jabatan'],
+            'gaji' => $data['gaji'],
+        ]);
+
+        return redirect('/admin/pegawai')
+            ->with('success', 'Data pegawai baru berhasil disimpan ke database SQL Server.');
+    }
+
     public function transaksi()
     {
         $transaksi = DB::table('db_transaksi')
