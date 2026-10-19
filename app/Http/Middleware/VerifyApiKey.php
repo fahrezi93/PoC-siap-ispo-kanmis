@@ -11,17 +11,17 @@ class VerifyApiKey
     /**
      * Handle an incoming request.
      *
-     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
+     * @param  Closure(Request): (Response)  $next
      */
     public function handle(Request $request, Closure $next): Response
     {
         $apiKey = $request->header('X-API-KEY');
-        $validKey = env('API_GATEWAY_KEY');
+        $validKey = config('api_gateway.key');
 
-        if (empty($apiKey) || $apiKey !== $validKey) {
+        if (! is_string($apiKey) || ! is_string($validKey) || $validKey === '' || ! hash_equals($validKey, $apiKey)) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Unauthorized: API Key tidak valid atau tidak disertakan.'
+                'message' => 'Unauthorized: API Key tidak valid atau tidak disertakan.',
             ], 401);
         }
 

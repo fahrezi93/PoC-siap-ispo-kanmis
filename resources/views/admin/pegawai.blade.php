@@ -1,132 +1,20 @@
 @extends('layouts.admin')
-
-@section('title', 'Data Pegawai - KANMIS')
-@section('page_heading', 'Data Pegawai')
-@section('breadcrumb', 'Data Pegawai')
-
+@section('title', 'Data pegawai')
+@section('page_heading', 'Data pegawai')
 @section('content')
-
-    <div class="mb-6">
-        <h1 class="text-3xl font-bold text-gray-800">
-            Data Pegawai
-        </h1>
-        <p class="text-gray-500 mt-2">
-            Informasi pegawai internal Toko ABC.
-        </p>
-    </div>
-
-    <!-- FORM TAMBAH PEGAWAI -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
-
-        <div class="p-6 border-b border-gray-200">
-            <h2 class="text-lg font-semibold text-gray-800">
-                Tambah Pegawai
-            </h2>
-            <p class="text-sm text-gray-500 mt-1">
-                Data akan disimpan langsung ke database SQL Server (Tabel db_pegawai).
-            </p>
-        </div>
-
-        <form action="{{ url('/admin/pegawai') }}" method="POST" class="p-6">
-            @csrf
-
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Nama Pegawai
-                    </label>
-                    <input type="text" name="nama_pegawai"
-                           value="{{ old('nama_pegawai') }}"
-                           placeholder="Contoh: Ahmad Fauzi"
-                           required
-                           class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Jabatan
-                    </label>
-                    <input type="text" name="jabatan"
-                           value="{{ old('jabatan') }}"
-                           placeholder="Contoh: Staff Keuangan"
-                           required
-                           class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none">
-                </div>
-
-                <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                        Gaji (Rp)
-                    </label>
-                    <input type="number" name="gaji"
-                           value="{{ old('gaji') }}"
-                           min="0" step="100000" required
-                           placeholder="Contoh: 7500000"
-                           class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-indigo-500 outline-none">
-                </div>
-
-            </div>
-
-            <button type="submit"
-                    class="mt-5 bg-indigo-700 text-white font-medium px-5 py-3 rounded-lg hover:bg-indigo-800 transition">
-                + Simpan Pegawai
-            </button>
-        </form>
-
-    </div>
-
-    <!-- DAFTAR PEGAWAI -->
-    <div class="bg-white rounded-xl shadow-sm border border-gray-200">
-
-        <div class="p-6 border-b border-gray-200">
-            <h2 class="text-lg font-semibold">
-                Daftar Pegawai
-            </h2>
-        </div>
-
-        <div class="overflow-x-auto">
-            <table class="w-full text-left">
-                <thead class="bg-gray-50 text-gray-600 text-sm">
-                    <tr>
-                        <th class="px-6 py-4">No.</th>
-                        <th class="px-6 py-4">Nama Pegawai</th>
-                        <th class="px-6 py-4">Jabatan</th>
-                        <th class="px-6 py-4">Gaji</th>
-                    </tr>
-                </thead>
-
-                <tbody class="divide-y divide-gray-100">
-                    @forelse($pegawai as $index => $item)
-                        <tr class="hover:bg-gray-50">
-                            <td class="px-6 py-4">
-                                {{ $index + 1 }}
-                            </td>
-                            <td class="px-6 py-4 font-medium">
-                                {{ $item->nama_pegawai }}
-                            </td>
-                            <td class="px-6 py-4">
-                                {{ $item->jabatan }}
-                            </td>
-                            <td class="px-6 py-4">
-                                Rp {{ number_format($item->gaji, 0, ',', '.') }}
-                            </td>
-                        </tr>
-                    @empty
-                        <tr>
-                            <td colspan="4"
-                                class="px-6 py-8 text-center text-gray-500">
-                                Belum ada data pegawai.
-                            </td>
-                        </tr>
-                    @endforelse
-                </tbody>
-            </table>
-        </div>
-
-        <div class="p-4 text-sm text-gray-500 border-t border-gray-200">
-            Data pegawai bersifat internal dan tidak ditampilkan melalui API Gateway Transaksi.
-        </div>
-
-    </div>
-
+<div class="page-heading"><div><p class="eyebrow">TIM INTERNAL</p><h1>Kenali tim di balik toko.</h1><p class="intro">Kelola informasi pegawai, jabatan, dan gaji dalam aplikasi A.</p></div><span class="record-count">{{ number_format($pegawai->total(), 0, ',', '.') }} pegawai sesuai filter</span></div>
+<details class="entry-panel" id="tambah" @if($errors->any()) open @endif><summary>Tambah pegawai <span aria-hidden="true">+</span></summary><form class="entry-form" action="{{ url('/admin/pegawai') }}" method="POST">@csrf
+    <p class="form-intro">Lengkapi informasi pegawai yang akan ditambahkan.</p>
+    <div class="form-grid"><div><label for="nama_pegawai">Nama pegawai</label><input id="nama_pegawai" name="nama_pegawai" value="{{ old('nama_pegawai') }}" maxlength="100" placeholder="Contoh: Ahmad Fauzi" required @error('nama_pegawai') aria-invalid="true" aria-describedby="nama-error" @enderror>@error('nama_pegawai')<p class="field-error" id="nama-error">{{ $message }}</p>@enderror</div>
+    <div><label for="jabatan">Jabatan</label><input id="jabatan" name="jabatan" value="{{ old('jabatan') }}" maxlength="50" placeholder="Contoh: Kasir" required @error('jabatan') aria-invalid="true" aria-describedby="jabatan-error" @enderror>@error('jabatan')<p class="field-error" id="jabatan-error">{{ $message }}</p>@enderror</div>
+    <div><label for="gaji">Gaji (Rp)</label><input id="gaji" name="gaji" type="number" min="0" step="0.01" value="{{ old('gaji') }}" placeholder="5000000.00" required @error('gaji') aria-invalid="true" aria-describedby="gaji-error" @enderror>@error('gaji')<p class="field-error" id="gaji-error">{{ $message }}</p>@enderror</div></div>
+    <div class="form-actions"><button class="button button-primary" type="submit">Simpan pegawai</button><span>Data baru disimpan ke aplikasi A.</span></div>
+</form></details>
+<section class="ledger" aria-labelledby="employee-list"><div class="section-heading"><div><h2 id="employee-list">Daftar pegawai</h2><p>Informasi pegawai yang terdaftar di Toko ABC.</p></div></div>
+<form class="filters" method="GET" action="{{ url('/admin/pegawai') }}"><div class="search-field"><label for="q">Cari nama atau jabatan</label><input id="q" name="q" type="search" maxlength="100" value="{{ request('q') }}" placeholder="Masukkan nama atau jabatan">@error('q')<p class="field-error">{{ $message }}</p>@enderror</div><button class="button button-primary" type="submit">Cari pegawai</button><a class="reset-link" href="{{ url('/admin/pegawai') }}">Reset</a></form>
+<div class="table-scroll" role="region" aria-label="Tabel pegawai" tabindex="0"><table><caption class="sr-only">Data internal pegawai Toko ABC</caption><thead><tr><th scope="col">No.</th><th scope="col">Nama pegawai</th><th scope="col">Jabatan</th><th scope="col" class="align-right">Gaji</th></tr></thead><tbody>
+@forelse($pegawai as $item)<tr><td>{{ $pegawai->firstItem() + $loop->index }}</td><th scope="row" class="transaction-code">{{ $item->nama_pegawai }}</th><td>{{ $item->jabatan }}</td><td class="align-right nominal"><x-rupiah :value="$item->gaji" /></td></tr>@empty<tr><td colspan="4" class="empty-state"><span class="empty-symbol" aria-hidden="true">≡</span><h3>Belum ada pegawai yang cocok</h3><p>Tambah pegawai baru atau coba pencarian lainnya.</p><a href="{{ url('/admin/pegawai') }}#tambah">Tambah pegawai →</a></td></tr>@endforelse
+</tbody></table></div>
+@include('admin.partials.pagination', ['records' => $pegawai])
+</section>
 @endsection

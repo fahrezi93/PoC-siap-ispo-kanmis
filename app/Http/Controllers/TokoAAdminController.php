@@ -5,40 +5,45 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\View\View;
 
 class TokoAAdminController extends Controller
 {
-    public function dashboard()
+    public function dashboard(): View
     {
-        $jumlahPegawai = DB::table('db_pegawai')->count();
-
         $jumlahTransaksi = DB::table('db_transaksi')->count();
 
-        $totalNominalTransaksi = DB::table('db_transaksi')
+        $jumlahTransaksiBerhasil = DB::table('db_transaksi')->where('status', 'SUCCESS')->count();
+
+        $totalNominalBerhasil = DB::table('db_transaksi')
+            ->where('status', 'SUCCESS')
             ->sum('total_nominal');
 
-        $transaksiTerbesarBulanIni = DB::table('db_transaksi')
-            ->whereBetween('created_at', [
-                now()->startOfMonth(),
-                now()->endOfMonth()
-            ])
-            ->orderByDesc('total_nominal')
-            ->take(5)
-            ->get();
+        $transaksiTerbaru = DB::table('db_transaksi')
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->paginate(25)->withQueryString();
 
         return view('admin.dashboard', compact(
-            'jumlahPegawai',
             'jumlahTransaksi',
-            'totalNominalTransaksi',
-            'transaksiTerbesarBulanIni'
+            'jumlahTransaksiBerhasil',
+            'totalNominalBerhasil',
+            'transaksiTerbaru'
         ));
     }
 
-    public function pegawai()
+    public function pegawai(Request $request): View
     {
+        $request->validate(['q' => ['nullable', 'string', 'max:100']]);
         $pegawai = DB::table('db_pegawai')
+            ->when($request->filled('q'), function ($query) use ($request): void {
+                $search = '%'.mb_strtolower(trim($request->string('q')->toString())).'%';
+                $query->where(function ($query) use ($search): void {
+                    $query->whereRaw('LOWER(nama_pegawai) LIKE ?', [$search])->orWhereRaw('LOWER(jabatan) LIKE ?', [$search]);
+                });
+            })
             ->orderBy('id')
-            ->get();
+            ->paginate(25)->withQueryString();
 
         return view('admin.pegawai', compact('pegawai'));
     }
@@ -61,11 +66,15 @@ class TokoAAdminController extends Controller
             ->with('success', 'Data pegawai baru berhasil disimpan ke database SQL Server.');
     }
 
-    public function transaksi()
+    public function transaksi(Request $request): View
     {
+        $request->validate(['q' => ['nullable', 'string', 'max:100'], 'status' => ['nullable', Rule::in(['SUCCESS', 'FAILED'])]]);
         $transaksi = DB::table('db_transaksi')
+            ->when($request->filled('q'), fn ($query) => $query->whereRaw('LOWER(kode_transaksi) LIKE ?', ['%'.mb_strtolower(trim($request->string('q')->toString())).'%']))
+            ->when($request->filled('status'), fn ($query) => $query->where('status', $request->string('status')->toString()))
             ->orderByDesc('created_at')
-            ->get();
+            ->orderByDesc('id')
+            ->paginate(25)->withQueryString();
 
         return view('admin.transaksi', compact('transaksi'));
     }

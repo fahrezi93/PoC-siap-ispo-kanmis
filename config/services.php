@@ -2,6 +2,10 @@
 
 return [
 
+    'finance_c' => [
+        'url' => env('APP_C_URL', 'http://localhost:8002/app-c'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services
