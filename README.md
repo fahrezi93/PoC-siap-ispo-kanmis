@@ -67,7 +67,57 @@ Alamat C: http://localhost:8002/app-c
 
 ## A → B: clone database MSSQL
 
-Skrip berada di `database/clone-a-to-b.ps1`. Memerlukan `sqlcmd`, hak backup/restore dan direktori yang dapat ditulis layanan SQL Server. Versi PoC mendukung satu instance SQL Server dengan satu file data dan satu log; untuk instance berbeda gunakan prosedur backup/restore DBA.
+Untuk deployment berbeda komputer, scheduler di **B** menjalankan `app-b/database/clone-network.ps1` melalui `ScheduledDatabaseClone`. Alurnya:
+
+1. B menghubungi SQL Server A melalui jaringan privat dan meminta `BACKUP DATABASE ... WITH COPY_ONLY, INIT, CHECKSUM`.
+2. SQL Server A menulis `.bak` pada folder backup A. File ini dibuat saat job berjalan, bukan berkas yang disertakan melalui GitHub.
+3. Proses scheduler B membaca file tersebut melalui SMB/UNC share, lalu menyalinnya ke folder penerima B.
+4. B memeriksa SHA256 sebelum/sesudah transfer, menjalankan `RESTORE VERIFYONLY`, dan membandingkan `BackupSetGUID` dengan backup yang dibuat di A. Path yang menunjuk backup berbeda ditolak sebelum restore.
+5. SQL Server B me-restore file tersebut ke database mirror B, kemudian B menerbitkan snapshot API untuk C.
+
+Contoh tiga mesin: A `192.168.10.10`, B `192.168.10.20`, C `192.168.10.30`. Alamat ini hanya contoh; server dan share jaringan nyata belum tersedia sehingga mode ini belum diuji antarserver. A → B tidak melalui halaman `/admin`, API, atau tunnel HTTP ngrok.
+
+Isi **`.env` milik B** sesuai jaringan sebenarnya:
+
+```dotenv
+DB_CONNECTION=sqlsrv
+DB_HOST=192.168.10.20
+DB_PORT=1433
+DB_DATABASE=db_keuangan_b
+DB_USERNAME=akun_sql_b
+DB_PASSWORD=isi-secara-privat
+DB_TRUST_SERVER_CERTIFICATE=false
+FINANCE_CLONE_TRANSPORT=network
+FINANCE_CLONE_ENABLED=false
+FINANCE_CLONE_SOURCE_SERVER=192.168.10.10,1433
+FINANCE_CLONE_SOURCE_DATABASE=db_toko_a
+FINANCE_CLONE_SOURCE_USERNAME=akun_sql_a
+FINANCE_CLONE_SOURCE_PASSWORD=isi-secara-privat
+FINANCE_CLONE_SOURCE_TRUST_CERTIFICATE=false
+FINANCE_CLONE_SOURCE_BACKUP_PATH='D:\SqlBackups\toko_a_for_b.bak'
+FINANCE_CLONE_TRANSFER_SOURCE='\\SERVER-A\CloneBackup\toko_a_for_b.bak'
+FINANCE_CLONE_TRANSFER_DESTINATION='D:\Inbound\toko_a_for_b.bak'
+FINANCE_CLONE_TARGET_BACKUP_PATH='D:\Inbound\toko_a_for_b.bak'
+```
+
+Empat path memiliki sudut pandang berbeda: `SOURCE_BACKUP_PATH` dilihat SQL A; `TRANSFER_SOURCE` adalah file yang sama melalui share; `TRANSFER_DESTINATION` dilihat proses scheduler B; `TARGET_BACKUP_PATH` adalah hasil transfer yang sama dilihat SQL B. Jika aplikasi B dan SQL B juga terpisah mesin, gunakan share penerima yang sesuai untuk dua path terakhir. Folder harus sudah tersedia. Gunakan nama file khusus job ini karena file `.bak` dan database mirror B diganti pada setiap clone.
+
+Prasyarat jaringan dan hak akses:
+
+- Windows PowerShell dan PHP di mesin scheduler B; driver SQL Server untuk Laravel. Mode jaringan memakai .NET SqlClient, tidak memerlukan `sqlcmd`.
+- SQL A/B dapat dijangkau melalui TCP pada port instance sebenarnya; SMB share dapat dijangkau oleh B melalui jaringan privat/VPN. Beda subnet memerlukan routing serta aturan firewall dari pengelola jaringan.
+- Akun SQL A mempunyai hak backup; akun SQL B mempunyai hak restore/create/replace database mirror. Jika username kosong, skrip memakai Windows Authentication dari identitas proses scheduler.
+- Akun layanan SQL A dapat menulis folder backup A. Akun Windows scheduler B dapat membaca share A dan menulis folder penerima. Akun layanan SQL B dapat membaca file hasil transfer. Kredensial SQL tidak otomatis memberi izin SMB/NTFS.
+- Koneksi SQL terenkripsi secara default. Gunakan sertifikat yang dipercaya dan nama host yang sesuai. Flag trust certificate hanya untuk instalasi yang memang memerlukannya.
+- Versi SQL B harus sama atau lebih baru dari A. Skrip saat ini mendukung satu file data dan satu log; kebutuhan lain seperti TDE memerlukan penyiapan DBA tambahan. Hak akses aplikasi B setelah restore juga harus disiapkan pada SQL Server B.
+
+Rujukan: [izin SQL Server untuk backup jaringan](https://learn.microsoft.com/en-us/sql/relational-databases/backup-restore/backup-devices-sql-server?view=sql-server-ver16), [batasan versi backup/restore](https://learn.microsoft.com/en-us/troubleshoot/sql/database-engine/backup-restore/backup-restore-operations).
+
+Setelah semua alamat, folder, dan izin tersedia, ubah `FINANCE_CLONE_ENABLED=true`, jalankan `php artisan config:clear`, lalu `php artisan finance:clone-from-a` dari **app-b** untuk menjalankan satu siklus nyata. Command ini benar-benar mengganti database B. Setelah berhasil, aktifkan scheduler B. C tetap mengambil data secara manual dari URL API B dengan key yang cocok.
+
+### Mode demo satu instance
+
+Demo lokal yang sudah berjalan memakai `FINANCE_CLONE_TRANSPORT=local` secara eksplisit pada `.env` B; koneksinya tidak dipindahkan ke alamat contoh. Skrip root `database/clone-a-to-b.ps1` juga tersedia untuk backup/restore manual satu instance. Skrip lokal memerlukan `sqlcmd`, Windows Authentication, hak backup/restore dan direktori yang dapat ditulis layanan SQL Server.
 
 ```powershell
 .\database\clone-a-to-b.ps1 -ServerInstance 'localhost\SQLEXPRESS' `
@@ -81,7 +131,7 @@ Periksa simulasi, kemudian hapus `-WhatIf` untuk eksekusi langsung skrip root. S
 
 ## Konfigurasi B
 
-Edit `app-b/.env`, bukan `.env` A. Gunakan `DB_CONNECTION=sqlsrv`, host/kredensial MSSQL, `DB_DATABASE=db_keuangan_b`, `FINANCE_PUBLISHER_ENABLED=true`, `FINANCE_SOURCE_CONNECTION=sqlsrv`, `FINANCE_CLONE_ENABLED=true`, `FINANCE_CLONE_SOURCE_DATABASE=db_toko_a`. `API_GATEWAY_KEY` B harus sama dengan `FINANCE_UPSTREAM_KEY` C. Publisher API hanya memerlukan akses baca. Scheduler clone PoC memakai Windows Authentication pada instance yang sama dan harus dijalankan oleh akun Windows dengan hak backup/restore serta akses direktori SQL Server. SQL Authentication dan DB_URL belum didukung untuk job clone ini.
+Edit `app-b/.env`, bukan `.env` A. Gunakan `DB_CONNECTION=sqlsrv`, host/kredensial MSSQL B, `DB_DATABASE=db_keuangan_b`, `FINANCE_PUBLISHER_ENABLED=true` dan `FINANCE_SOURCE_CONNECTION=sqlsrv`. Konfigurasi clone jaringan dijelaskan di atas; `.env.example` menonaktifkan clone sampai koneksi siap. `API_GATEWAY_KEY` B harus sama dengan `FINANCE_UPSTREAM_KEY` C. Publisher API hanya memerlukan akses baca, sedangkan akun pelaksana clone memerlukan hak backup/restore. Mode jaringan mendukung SQL Authentication atau Windows Authentication; `DB_URL` tidak didukung untuk job clone, gunakan variabel host/port/username/password eksplisit.
 
 Setelah clone sukses, jalankan di folder **app-b**:
 

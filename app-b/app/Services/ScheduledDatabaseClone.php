@@ -18,6 +18,14 @@ class ScheduledDatabaseClone
         $settings = config('database.connections.'.$connectionName);
         $source = config('finance_sync.clone_source_database');
         $target = $settings['database'] ?? '';
+        if (config('finance_sync.clone_transport') === 'network') {
+            $this->runNetwork($settings ?? [], $connectionName, $source, $target);
+
+            return;
+        }
+        if (config('finance_sync.clone_transport') !== 'local') {
+            throw new RuntimeException('Transport clone harus network atau local.');
+        }
         if (($settings['driver'] ?? '') !== 'sqlsrv' || ! empty($settings['username']) || ! empty($settings['url'])) {
             throw new RuntimeException('Clone PoC memerlukan koneksi MSSQL dengan Windows Authentication dan tanpa DB_URL.');
         }
@@ -65,6 +73,54 @@ class ScheduledDatabaseClone
             } finally {
                 DB::purge($connectionName);
                 DB::purge('finance_clone_master');
+            }
+        });
+    }
+
+    private function runNetwork(array $settings, string $connectionName, string $source, string $target): void
+    {
+        if (($settings['driver'] ?? '') !== 'sqlsrv' || ! empty($settings['url'])) {
+            throw new RuntimeException('Target clone memerlukan konfigurasi MSSQL eksplisit tanpa DB_URL.');
+        }
+        foreach ([$source, $target] as $database) {
+            if (! preg_match('/^[A-Za-z][A-Za-z0-9_]{0,127}$/', $database) || in_array(strtolower($database), ['master', 'model', 'msdb', 'tempdb'], true)) {
+                throw new RuntimeException('Nama database clone tidak valid.');
+            }
+        }
+        $required = ['clone_source_server', 'clone_source_backup_path', 'clone_transfer_source', 'clone_transfer_destination', 'clone_target_backup_path'];
+        foreach ($required as $setting) {
+            if (! is_string(config('finance_sync.'.$setting)) || trim(config('finance_sync.'.$setting)) === '') {
+                throw new RuntimeException('Konfigurasi jaringan belum lengkap: '.$setting);
+            }
+        }
+        if (! str_starts_with(config('finance_sync.clone_transfer_source'), '\\\\')) {
+            throw new RuntimeException('Sumber transfer jaringan harus berupa UNC share, misalnya \\\\SERVER-A\\CloneBackup\\database.bak.');
+        }
+        $arguments = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', database_path('clone-network.ps1'),
+            '-SourceServer', config('finance_sync.clone_source_server'),
+            '-TargetServer', $settings['host'].(! empty($settings['port']) ? ','.$settings['port'] : ''),
+            '-SourceDatabase', $source, '-TargetDatabase', $target,
+            '-SourceBackupFile', config('finance_sync.clone_source_backup_path'),
+            '-TransferSourceFile', config('finance_sync.clone_transfer_source'),
+            '-TransferDestinationFile', config('finance_sync.clone_transfer_destination'),
+            '-TargetBackupFile', config('finance_sync.clone_target_backup_path')];
+        if (config('finance_sync.clone_source_trust_certificate')) {
+            $arguments[] = '-SourceTrustCertificate';
+        }
+        if (filter_var($settings['trust_server_certificate'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $arguments[] = '-TargetTrustCertificate';
+        }
+        Cache::store(config('finance_sync.lock_store'))->lock('finance-publish', 7200)->block(5, function () use ($arguments, $settings, $connectionName): void {
+            DB::purge($connectionName);
+            try {
+                Process::env([
+                    'CLONE_A_SQL_USERNAME' => config('finance_sync.clone_source_username'),
+                    'CLONE_A_SQL_PASSWORD' => config('finance_sync.clone_source_password'),
+                    'CLONE_B_SQL_USERNAME' => $settings['username'] ?? '',
+                    'CLONE_B_SQL_PASSWORD' => $settings['password'] ?? '',
+                ])->timeout(1800)->run($arguments)->throw();
+            } finally {
+                DB::purge($connectionName);
             }
         });
     }
