@@ -51,6 +51,9 @@ class FinanceSnapshotPublisher
                 }
                 $connection->transaction(function () use ($connection, $disk, $directory, $size, &$manifest): void {
                     foreach (self::RESOURCES as $name => $resource) {
+                        if ($name === 'pegawai' && ! config('finance_sync.employee_export_enabled')) {
+                            continue;
+                        }
                         $count = 0;
                         $pages = [];
                         $connection->table($resource['table'])->select($resource['columns'])

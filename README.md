@@ -197,6 +197,10 @@ Default 500 baris per halaman, maksimal 1.000. Halaman berasal dari snapshot tet
 
 ## Konfigurasi C
 
+Dashboard C memiliki bagian **Izin data dari B** dengan status transaksi serta pegawai/gaji. Tombol **Periksa izin dari B** membaca manifest API B tanpa mengimpor data. Sebelum pemeriksaan pertama statusnya **Belum diperiksa**; kegagalan koneksi tidak dianggap izin atau blokir. Waktu pemeriksaan ditampilkan karena status mengikuti snapshot B pada saat diperiksa. Tombol penarikan data juga memperbarui status tersebut.
+
+Untuk mengizinkan pegawai, set `FINANCE_EMPLOYEE_EXPORT_ENABLED=true` di `.env` **B**; untuk memblokir, set `false`. Jalankan `php artisan config:clear` dan `php artisan finance:publish-snapshot` di B, lalu periksa izin lagi di C. B tidak menyertakan pegawai pada snapshot baru saat diblokir dan menolak akses halaman pegawai dari snapshot lama dengan HTTP 403. C tetap dapat menarik transaksi. Data pegawai yang sudah pernah tersimpan di C tidak otomatis dihapus oleh pemeriksaan izin atau perubahan konfigurasi ini. Full clone A → B tetap menyertakan seluruh database.
+
 Pada instalasi baru, aktifkan ekstensi PHP `pdo_pgsql`, buat database `db_keuangan_c`, lalu isi host, port, username dan password PostgreSQL pada **app-c/.env**. Demo lokal di atas sudah disiapkan pada port 5433. Set:
 
 ```dotenv

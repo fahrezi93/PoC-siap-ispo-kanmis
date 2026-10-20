@@ -3,6 +3,7 @@
 return [
     'gateway_key' => env('API_GATEWAY_KEY'),
     'publisher_enabled' => env('FINANCE_PUBLISHER_ENABLED', false),
+    'employee_export_enabled' => env('FINANCE_EMPLOYEE_EXPORT_ENABLED', true),
     'source_connection' => env('FINANCE_SOURCE_CONNECTION', 'sqlsrv'),
     'page_size' => (int) env('FINANCE_PAGE_SIZE', 500),
     'snapshot_hours' => (int) env('FINANCE_SNAPSHOT_HOURS', 24),

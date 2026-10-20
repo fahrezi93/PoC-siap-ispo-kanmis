@@ -8,6 +8,19 @@ use Tests\TestCase;
 
 class FinanceDashboardTest extends TestCase
 {
+    public function test_access_panel_waits_for_b_before_claiming_a_permission(): void
+    {
+        $this->get('/app-c')->assertOk()->assertSee('Izin data dari B')->assertSee('Belum diperiksa')
+            ->assertSee('Periksa izin dari B')->assertDontSee('Diblokir oleh B')->assertDontSee('Diizinkan oleh B');
+    }
+
+    public function test_access_panel_shows_allowed_and_denied_policy_returned_by_b(): void
+    {
+        $this->withSession(['finance_data_access' => ['transaksi' => true, 'pegawai' => false, 'checked_at' => now()->toIso8601String()]])
+            ->get('/app-c')->assertOk()->assertSee('Transaksi')->assertSee('Pegawai & gaji')
+            ->assertSee('Diizinkan oleh B')->assertSee('Diblokir oleh B')->assertSee('Terakhir diperiksa');
+    }
+
     protected function setUp(): void
     {
         parent::setUp();

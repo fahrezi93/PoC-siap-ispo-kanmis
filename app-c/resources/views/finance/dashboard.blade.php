@@ -21,10 +21,29 @@
             <div class="page-heading"><div><p class="eyebrow">MONITOR KEUANGAN</p><h1>Transaksi, dalam satu pandangan.</h1><p class="intro">Tarik data dari Aplikasi B saat dibutuhkan, lalu pantau transaksi di sini.</p></div><form method="POST" action="{{ route('finance.sync') }}">@csrf<button type="submit" class="button button-primary">Tarik data dari B</button></form></div>
             @if(session('sync_success'))<div class="notice" role="status">{{ session('sync_success') }}</div>@endif
             @if(session('sync_error'))<div class="notice" role="alert">{{ session('sync_error') }}</div>@endif
+            @if(session('access_success'))<div class="notice" role="status">{{ session('access_success') }}</div>@endif
+            @if(session('access_error'))<div class="notice" role="alert">{{ session('access_error') }}</div>@endif
 
             <section class="sync-strip" aria-label="Status sinkronisasi">
                 <div><span class="status-dot {{ $unavailable || !$lastSync || $stale ? 'status-muted' : '' }}" aria-hidden="true"></span><strong>{{ $unavailable ? 'Koneksi belum tersedia' : (!$lastSync ? 'Menunggu penarikan pertama' : ($stale ? 'Data terakhir tersimpan' : 'Data tersinkron')) }}</strong></div>
                 <p>{{ $lastSync ? 'Terakhir ditarik '.$lastSync->format('d M Y, H:i').' · '.$timezone : 'Klik Tarik data dari B untuk mengambil data.' }}</p><span class="sync-frequency">Penarikan manual</span>
+            </section>
+
+            <section class="ledger data-access" aria-labelledby="access-title">
+                <div class="section-heading">
+                    <div><h2 id="access-title">Izin data dari B</h2><p>{{ $accessCheckedAt ? 'Terakhir diperiksa '.$accessCheckedAt.' · '.$timezone : 'Periksa izin untuk mengetahui data yang boleh ditarik.' }}</p></div>
+                    <form method="POST" action="{{ route('finance.access') }}">@csrf<button class="button button-secondary" type="submit">Periksa izin dari B</button></form>
+                </div>
+                <dl class="access-list">
+                    @foreach(['transaksi' => 'Transaksi', 'pegawai' => 'Pegawai & gaji'] as $resource => $label)
+                        <div class="access-row">
+                            <dt>{{ $label }}</dt>
+                            <dd><span class="badge {{ $dataAccess === null ? 'badge-neutral' : ($dataAccess[$resource] ? 'badge-success' : 'badge-blocked') }}">{{ $dataAccess === null ? 'Belum diperiksa' : ($dataAccess[$resource] ? 'Diizinkan oleh B' : 'Diblokir oleh B') }}</span></dd>
+                            <dd class="access-description">{{ $dataAccess === null ? 'Status belum diketahui.' : ($dataAccess[$resource] ? 'Tersedia dalam paket data dari B.' : 'Tidak tersedia untuk penarikan dari B.') }}</dd>
+                        </div>
+                    @endforeach
+                </dl>
+                <p class="access-note">Izin mengikuti data yang tersedia pada snapshot B. Pemeriksaan ini tidak menarik atau menghapus data di C.</p>
             </section>
 
             @if($unavailable)

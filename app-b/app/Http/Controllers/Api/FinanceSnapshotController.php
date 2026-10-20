@@ -16,6 +16,9 @@ class FinanceSnapshotController extends Controller
         abort_unless($disk->exists('latest.json'), 503, 'Snapshot B belum diterbitkan.');
         $manifest = json_decode($disk->get('latest.json'), true, flags: JSON_THROW_ON_ERROR);
         abort_if(now()->greaterThanOrEqualTo($manifest['expires_at']), 503, 'Snapshot B kedaluwarsa.');
+        if (! config('finance_sync.employee_export_enabled')) {
+            unset($manifest['resources']['pegawai']);
+        }
 
         return response()->json($manifest)->header('Cache-Control', 'no-store');
     }
@@ -23,6 +26,7 @@ class FinanceSnapshotController extends Controller
     public function page(string $snapshot, string $resource, string $page): Response
     {
         abort_unless(config('finance_sync.publisher_enabled'), 404);
+        abort_if($resource === 'pegawai' && ! config('finance_sync.employee_export_enabled'), 403, 'Akses data pegawai diblokir oleh aplikasi B.');
         $disk = Storage::disk('finance_sync');
         $directory = 'exports/'.$snapshot;
         abort_unless($disk->exists($directory.'/manifest.json'), 404);

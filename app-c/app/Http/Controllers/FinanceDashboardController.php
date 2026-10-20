@@ -69,8 +69,10 @@ class FinanceDashboardController extends Controller
 
         $lastSync = $state ? CarbonImmutable::parse($state->synced_at, 'UTC')->setTimezone($timezone) : null;
         $stale = $lastSync && $lastSync->lessThan(now()->subHours(2));
+        $dataAccess = $request->session()->get('finance_data_access');
+        $accessCheckedAt = $dataAccess ? CarbonImmutable::parse($dataAccess['checked_at'])->setTimezone($timezone)->format('d M Y, H:i') : null;
 
-        return view('finance.dashboard', compact('filters', 'state', 'unavailable', 'summary', 'transactions', 'lastSync', 'stale', 'timezone'));
+        return view('finance.dashboard', compact('filters', 'state', 'unavailable', 'summary', 'transactions', 'lastSync', 'stale', 'timezone', 'dataAccess', 'accessCheckedAt'));
     }
 
     private function rupiah(string $amount): string

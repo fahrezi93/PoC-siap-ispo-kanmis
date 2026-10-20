@@ -15,6 +15,15 @@ use Throwable;
 
 class FinanceMirrorSync
 {
+    /** @return array{transaksi: bool, pegawai: bool} */
+    public function accessPolicy(): array
+    {
+        $manifest = $this->client()->get('/api/v1/finance/snapshot')->throw()->json();
+        $this->validateManifest($manifest);
+
+        return ['transaksi' => isset($manifest['resources']['transaksi']), 'pegawai' => isset($manifest['resources']['pegawai'])];
+    }
+
     private const RESOURCE_COLUMNS = [
         'transaksi' => ['id', 'kode_transaksi', 'total_nominal', 'status', 'created_at'],
         'pegawai' => ['id', 'nama_pegawai', 'jabatan', 'gaji'],
@@ -130,7 +139,7 @@ class FinanceMirrorSync
             'manifest.created_at' => ['required', 'date'],
             'manifest.expires_at' => ['required', 'date', 'after:manifest.created_at'],
             'manifest.page_size' => ['required', 'integer', 'between:1,1000'],
-            'manifest.resources' => ['required', 'array:transaksi,pegawai', 'required_array_keys:transaksi,pegawai'],
+            'manifest.resources' => ['required', 'array:transaksi,pegawai', 'required_array_keys:transaksi'],
             'manifest.resources.*' => ['required', 'array:count,pages'],
             'manifest.resources.*.count' => ['required', 'integer', 'min:0'],
             'manifest.resources.*.pages' => ['present', 'array', 'list', 'max:10000'],
