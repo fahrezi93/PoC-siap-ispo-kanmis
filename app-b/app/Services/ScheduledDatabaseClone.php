@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use RuntimeException;
 
@@ -18,13 +19,18 @@ class ScheduledDatabaseClone
         $settings = config('database.connections.'.$connectionName);
         $source = config('finance_sync.clone_source_database');
         $target = $settings['database'] ?? '';
+        if (config('finance_sync.clone_transport') === 'https') {
+            $this->runHttps($settings ?? [], $connectionName, $source, $target);
+
+            return;
+        }
         if (config('finance_sync.clone_transport') === 'network') {
             $this->runNetwork($settings ?? [], $connectionName, $source, $target);
 
             return;
         }
         if (config('finance_sync.clone_transport') !== 'local') {
-            throw new RuntimeException('Transport clone harus network atau local.');
+            throw new RuntimeException('Transport clone harus https, network atau local.');
         }
         if (($settings['driver'] ?? '') !== 'sqlsrv' || ! empty($settings['username']) || ! empty($settings['url'])) {
             throw new RuntimeException('Clone PoC memerlukan koneksi MSSQL dengan Windows Authentication dan tanpa DB_URL.');
@@ -73,6 +79,71 @@ class ScheduledDatabaseClone
             } finally {
                 DB::purge($connectionName);
                 DB::purge('finance_clone_master');
+            }
+        });
+    }
+
+    private function runHttps(array $settings, string $connectionName, string $source, string $target): void
+    {
+        $url = config('finance_sync.clone_upstream_url');
+        $key = config('finance_sync.clone_upstream_key');
+        $parts = is_string($url) ? parse_url($url) : false;
+        if (! is_array($parts) || ($parts['scheme'] ?? '') !== 'https' || empty($parts['host'])
+            || ! empty($parts['user']) || ! empty($parts['pass']) || ! empty($parts['query']) || ! empty($parts['fragment'])
+            || ! in_array($parts['path'] ?? '', ['', '/'], true) || ! is_string($key) || $key === '') {
+            throw new RuntimeException('Isi URL origin HTTPS A dan key clone.');
+        }
+        $host = $settings['host'] ?? '';
+        if (($settings['driver'] ?? '') !== 'sqlsrv' || ! empty($settings['url'])
+            || ! preg_match('/^(localhost|127\.0\.0\.1|\.)(\\\\[A-Za-z0-9_]+)?$/i', $host)) {
+            throw new RuntimeException('Demo HTTPS memerlukan SQL Server B lokal dengan host localhost atau localhost\\INSTANCE.');
+        }
+        foreach ([$source, $target] as $database) {
+            if (! preg_match('/^[A-Za-z][A-Za-z0-9_]{0,127}$/', $database) || in_array(strtolower($database), ['master', 'model', 'msdb', 'tempdb'], true)) {
+                throw new RuntimeException('Nama database clone tidak valid.');
+            }
+        }
+        if (strcasecmp($source, $target) === 0) {
+            throw new RuntimeException('Gunakan nama database mirror B yang berbeda dari A.');
+        }
+        $path = config('finance_sync.clone_transfer_destination');
+        if (! is_string($path) || ! preg_match('/^[A-Za-z]:[\\\\\/].+\.bak$/i', $path) || ! is_dir(dirname($path))) {
+            throw new RuntimeException('Siapkan folder penerima B dan path absolut file .bak.');
+        }
+        Cache::store(config('finance_sync.lock_store'))->lock('finance-publish', 7200)->block(5, function () use ($settings, $connectionName, $source, $target, $url, $key, $path): void {
+            $temporary = $path.'.part';
+            try {
+                $response = Http::withHeaders(['X-API-KEY' => $key, 'ngrok-skip-browser-warning' => '1'])
+                    ->withoutRedirecting()->connectTimeout(15)->timeout(600)->sink($temporary)
+                    ->post(rtrim($url, '/').'/api/v1/database/backup');
+                $checksum = $response->header('X-Backup-SHA256');
+                if ($response->status() !== 200 || $response->header('X-Backup-Database') !== $source
+                    || ! preg_match('/^[a-f0-9]{64}$/', $checksum) || ! is_file($temporary)
+                    || ! hash_equals($checksum, hash_file('sha256', $temporary))) {
+                    throw new RuntimeException('Unduhan backup gagal atau tidak cocok; restore B dibatalkan.');
+                }
+                if (! rename($temporary, $path)) {
+                    throw new RuntimeException('Tidak dapat menyimpan backup di folder B.');
+                }
+                $arguments = ['powershell.exe', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', database_path('clone-network.ps1'),
+                    '-DownloadedBackup', '-ExpectedSha256', $checksum,
+                    '-TargetServer', $settings['host'].(! empty($settings['port']) ? ','.$settings['port'] : ''),
+                    '-SourceDatabase', $source, '-TargetDatabase', $target,
+                    '-TransferDestinationFile', $path, '-TargetBackupFile', $path];
+                if (filter_var($settings['trust_server_certificate'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+                    $arguments[] = '-TargetTrustCertificate';
+                }
+                DB::purge($connectionName);
+                try {
+                    Process::env(['CLONE_B_SQL_USERNAME' => $settings['username'] ?? '', 'CLONE_B_SQL_PASSWORD' => $settings['password'] ?? ''])
+                        ->timeout(1800)->run($arguments)->throw();
+                } finally {
+                    DB::purge($connectionName);
+                }
+            } finally {
+                if (is_file($temporary)) {
+                    unlink($temporary);
+                }
             }
         });
     }

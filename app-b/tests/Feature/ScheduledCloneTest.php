@@ -6,6 +6,8 @@ use App\Services\FinanceSnapshotPublisher;
 use App\Services\ScheduledDatabaseClone;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Mockery;
 use RuntimeException;
@@ -13,6 +15,106 @@ use Tests\TestCase;
 
 class ScheduledCloneTest extends TestCase
 {
+    public function test_https_clone_downloads_backup_before_running_local_restore(): void
+    {
+        $path = $this->configureHttpsClone();
+        Http::preventStrayRequests();
+        Http::fake(['https://demo-a.ngrok-free.dev/api/v1/database/backup' => Http::response('backup-fixture', 200, [
+            'X-Backup-Database' => 'db_toko_a', 'X-Backup-SHA256' => hash('sha256', 'backup-fixture'),
+        ])]);
+        Process::fake();
+        DB::shouldReceive('purge')->with('sqlsrv')->twice();
+
+        try {
+            app(ScheduledDatabaseClone::class)->run();
+            $this->assertSame('backup-fixture', file_get_contents($path));
+            $this->assertFileDoesNotExist($path.'.part');
+            Http::assertSent(fn ($request) => $request->method() === 'POST'
+                && $request->hasHeader('X-API-KEY', 'clone-only')
+                && $request->hasHeader('ngrok-skip-browser-warning', '1'));
+            Process::assertRan(fn ($process) => in_array('-DownloadedBackup', $process->command, true)
+                && in_array(hash('sha256', 'backup-fixture'), $process->command, true)
+                && in_array($path, $process->command, true)
+                && ! in_array('-SourceServer', $process->command, true)
+                && ! in_array('clone-only', $process->command, true));
+        } finally {
+            File::delete([$path, $path.'.part']);
+        }
+    }
+
+    public function test_corrupt_download_keeps_previous_backup_and_never_restores(): void
+    {
+        $path = $this->configureHttpsClone();
+        file_put_contents($path, 'previous-backup');
+        Http::fake(['*' => Http::response('corrupt-backup', 200, [
+            'X-Backup-Database' => 'db_toko_a', 'X-Backup-SHA256' => hash('sha256', 'expected-backup'),
+        ])]);
+        Process::fake();
+
+        try {
+            try {
+                app(ScheduledDatabaseClone::class)->run();
+                $this->fail('Corrupt backup was accepted.');
+            } catch (RuntimeException $exception) {
+                $this->assertStringContainsString('restore B dibatalkan', $exception->getMessage());
+            }
+            $this->assertSame('previous-backup', file_get_contents($path));
+            $this->assertFileDoesNotExist($path.'.part');
+            Process::assertNothingRan();
+        } finally {
+            File::delete([$path, $path.'.part']);
+        }
+    }
+
+    public function test_html_or_unauthorized_response_never_starts_restore(): void
+    {
+        $path = $this->configureHttpsClone();
+        Http::fake(['*' => Http::response('<html>ngrok error</html>', 401)]);
+        Process::fake();
+
+        try {
+            app(ScheduledDatabaseClone::class)->run();
+            $this->fail('Unauthorized response was accepted.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('Unduhan backup gagal', $exception->getMessage());
+        }
+        $this->assertFileDoesNotExist($path.'.part');
+        Process::assertNothingRan();
+    }
+
+    public function test_https_clone_refuses_plain_http_before_sending_secret(): void
+    {
+        $this->configureHttpsClone();
+        config(['finance_sync.clone_upstream_url' => 'http://demo-a.ngrok-free.dev']);
+        Http::fake();
+        Process::fake();
+
+        try {
+            app(ScheduledDatabaseClone::class)->run();
+            $this->fail('Plain HTTP was accepted.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('HTTPS', $exception->getMessage());
+        }
+        Http::assertNothingSent();
+        Process::assertNothingRan();
+    }
+
+    private function configureHttpsClone(): string
+    {
+        $this->configureNetworkClone();
+        File::ensureDirectoryExists(storage_path('framework/testing'));
+        $path = str_replace('\\', '/', storage_path('framework/testing/https-clone.bak'));
+        config([
+            'finance_sync.clone_transport' => 'https',
+            'finance_sync.clone_upstream_url' => 'https://demo-a.ngrok-free.dev',
+            'finance_sync.clone_upstream_key' => 'clone-only',
+            'finance_sync.clone_transfer_destination' => $path,
+            'database.connections.sqlsrv.host' => 'localhost\\SQLEXPRESS',
+        ]);
+
+        return $path;
+    }
+
     public function test_network_clone_uses_distinct_servers_and_private_process_credentials(): void
     {
         $this->configureNetworkClone();

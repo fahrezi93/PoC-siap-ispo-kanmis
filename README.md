@@ -2,6 +2,54 @@
 
 Repository ini sekarang berisi tiga aplikasi Laravel mandiri.
 
+## Demo dua laptop melalui ngrok (A → B tetap full clone)
+
+Laptop pertama menjalankan A dan MSSQL A. Laptop kedua menjalankan B dengan MSSQL B lokal serta C dengan PostgreSQL. B meminta backup `.bak` A melalui HTTPS ngrok, memeriksa SHA256, lalu menggunakan skrip restore yang sama. Tidak perlu SQL A dibuka ke jaringan atau folder SMB share. B → C tetap penarikan manual melalui API snapshot B.
+
+Di `.env` **A**, aktifkan endpoint backup dan isi key khusus clone yang berbeda dari key API transaksi:
+
+```dotenv
+DB_CLONE_EXPORT_ENABLED=true
+DB_CLONE_KEY=isi-key-rahasia-khusus-clone
+```
+
+Jalankan `php artisan config:clear`, kemudian `php artisan serve --port=8000`. Di terminal lain, jalankan `ngrok http 8000`. Gunakan origin HTTPS ngrok yang muncul, tanpa `/admin` atau `/api`. Rujukan: [ngrok HTTP endpoints](https://ngrok.com/docs/gateway/endpoints/http).
+
+Endpoint `POST /api/v1/database/backup` memerlukan header `X-API-KEY` dengan key clone. Endpoint hanya mengekspor database yang dikonfigurasi pada A; nama database/path tidak bisa dipilih pemanggil. File dibuat di folder privat `storage/app/private/database-backups` A, dikirim sebagai download, lalu dihapus setelah respons selesai. SQL Server A dan aplikasi A harus berada di mesin yang sama, akun SQL A harus berhak backup, dan akun layanan SQL Server harus diberi izin menulis folder privat itu. Proses PHP A harus dapat membaca/menghapus file backup tersebut. File berisi **seluruh database termasuk data pegawai/gaji**; gunakan database dummy untuk demo. Jangan simpan `.bak` dalam folder `public`.
+
+Untuk instance SQLEXPRESS dengan identitas layanan `NT SERVICE\MSSQL$SQLEXPRESS`, jalankan sekali di PowerShell **Administrator** laptop A (sesuaikan lokasi repository dan akun layanan bila berbeda):
+
+```powershell
+New-Item -ItemType Directory -Force 'D:\PoC_Web_TokoA\storage\app\private\database-backups'
+icacls 'D:\PoC_Web_TokoA\storage\app\private\database-backups' /grant 'NT SERVICE\MSSQL$SQLEXPRESS:(OI)(CI)M'
+```
+
+Di `.env` **B** pada laptop kedua, pertahankan koneksi MSSQL lokal B yang benar, kemudian set:
+
+```dotenv
+FINANCE_CLONE_ENABLED=true
+FINANCE_CLONE_TRANSPORT=https
+FINANCE_CLONE_UPSTREAM_URL=https://domain-a.ngrok-free.dev
+FINANCE_CLONE_UPSTREAM_KEY=key-yang-sama-dengan-DB_CLONE_KEY-A
+FINANCE_CLONE_SOURCE_DATABASE=db_toko_a
+FINANCE_CLONE_TRANSFER_DESTINATION='D:\Inbound\toko_a_for_b.bak'
+```
+
+Buat folder `D:\Inbound` di laptop B; akun Windows yang menjalankan PHP harus dapat menulisnya dan layanan SQL B harus dapat membaca hasil unduhan. B memakai host SQL `localhost`, `127.0.0.1`, atau `localhost\INSTANCE`; gunakan nama database B khusus seperti `db_keuangan_b`. Versi SQL B harus sama atau lebih baru dari versi A. Pengaturan `SOURCE_SERVER`, `SOURCE_BACKUP_PATH`, `TRANSFER_SOURCE`, dan `TARGET_BACKUP_PATH` milik mode LAN tidak digunakan pada mode HTTPS; B menggunakan file lokal hasil unduhan untuk restore.
+
+Di folder **app-b**, jalankan:
+
+```powershell
+php artisan config:clear
+php artisan finance:clone-from-a
+```
+
+Command tersebut benar-benar mengganti database B dan menerbitkan snapshot hanya jika restore berhasil. Setelah satu siklus berhasil, jalankan `php artisan serve --port=8001` dan `php artisan schedule:work` pada dua terminal berbeda di B. Endpoint/tunnel A harus tetap aktif agar jadwal setiap jam berhasil. Bila domain ngrok berubah, perbarui URL B dan restart scheduler setelah membersihkan config cache.
+
+C pada laptop yang sama dengan B tetap memakai `FINANCE_UPSTREAM_URL=http://localhost:8001` dan key API snapshot B; **bukan key clone A**. Jalankan migrasi finance PostgreSQL saat instalasi C pertama, buka `/app-c`, lalu tekan **Tarik data dari B**. Sesudah demo, nonaktifkan `DB_CLONE_EXPORT_ENABLED` A dan tutup tunnel. Pengujian HTTP fake tidak menggantikan uji transfer/restore antar kedua laptop.
+
+Verifikasi lokal 20 Oktober 2026: endpoint A menghasilkan backup sekitar 6 MB dengan SHA256 cocok. Skrip mode unduhan berhasil me-restore backup ke database uji terpisah; jumlah transaksi sumber dan hasil restore sama-sama 10.014. Database uji dibersihkan setelah pengujian. Koneksi ngrok dan restore pada laptop teman belum diverifikasi.
+
 ## Status demo lokal yang sudah dijalankan
 
 UI B sekarang tersedia pada `http://localhost:8001/`: daftar transaksi hasil clone, pencarian/filter/pagination, ringkasan nominal dan status snapshot. Halaman tidak menampilkan key API atau data pegawai.

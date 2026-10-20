@@ -10,6 +10,8 @@ return [
     'clone_enabled' => env('FINANCE_CLONE_ENABLED', false),
     'clone_source_database' => env('FINANCE_CLONE_SOURCE_DATABASE', 'db_toko_a'),
     'clone_transport' => env('FINANCE_CLONE_TRANSPORT', 'network'),
+    'clone_upstream_url' => env('FINANCE_CLONE_UPSTREAM_URL'),
+    'clone_upstream_key' => env('FINANCE_CLONE_UPSTREAM_KEY'),
     'clone_source_server' => env('FINANCE_CLONE_SOURCE_SERVER'),
     'clone_source_username' => env('FINANCE_CLONE_SOURCE_USERNAME', ''),
     'clone_source_password' => env('FINANCE_CLONE_SOURCE_PASSWORD', ''),

@@ -13,10 +13,10 @@ class VerifyApiKey
      *
      * @param  Closure(Request): (Response)  $next
      */
-    public function handle(Request $request, Closure $next): Response
+    public function handle(Request $request, Closure $next, string $scope = 'transactions'): Response
     {
         $apiKey = $request->header('X-API-KEY');
-        $validKey = config('api_gateway.key');
+        $validKey = config($scope === 'clone' ? 'api_gateway.clone_key' : 'api_gateway.key');
 
         if (! is_string($apiKey) || ! is_string($validKey) || $validKey === '' || ! hash_equals($validKey, $apiKey)) {
             return response()->json([
