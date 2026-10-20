@@ -116,6 +116,7 @@ class ScheduledDatabaseClone
                 $response = Http::withHeaders(['X-API-KEY' => $key, 'ngrok-skip-browser-warning' => '1'])
                     ->withoutRedirecting()->connectTimeout(15)->timeout(600)->sink($temporary)
                     ->post(rtrim($url, '/').'/api/v1/database/backup');
+                $response->close();
                 $checksum = $response->header('X-Backup-SHA256');
                 if ($response->status() !== 200 || $response->header('X-Backup-Database') !== $source
                     || ! preg_match('/^[a-f0-9]{64}$/', $checksum) || ! is_file($temporary)

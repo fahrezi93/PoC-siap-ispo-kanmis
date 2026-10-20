@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Services\FinanceSnapshotPublisher;
 use App\Services\ScheduledDatabaseClone;
+use GuzzleHttp\Promise\Create;
+use GuzzleHttp\Psr7\Response;
+use GuzzleHttp\Psr7\Utils;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
@@ -11,10 +14,47 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Process;
 use Mockery;
 use RuntimeException;
+use Symfony\Component\Process\Process as NativeProcess;
 use Tests\TestCase;
 
 class ScheduledCloneTest extends TestCase
 {
+    public function test_download_file_is_closed_before_powershell_reads_backup(): void
+    {
+        $path = $this->configureHttpsClone();
+        $downloadHandle = fopen($path.'.part', 'w+b');
+        $downloadBody = Utils::streamFor($downloadHandle);
+        $downloadBody->write('backup-fixture');
+        $downloadBody->rewind();
+        Http::fake(['*' => Create::promiseFor(new Response(200, [
+            'X-Backup-Database' => 'db_toko_a',
+            'X-Backup-SHA256' => hash('sha256', 'backup-fixture'),
+        ], $downloadBody))]);
+        DB::shouldReceive('purge')->with('sqlsrv')->twice();
+        Process::fake(function () use ($downloadHandle, $path) {
+            $this->assertFalse(is_resource($downloadHandle), 'The HTTP download still holds the backup open.');
+            $this->assertSame('backup-fixture', file_get_contents($path));
+            if (PHP_OS_FAMILY === 'Windows') {
+                $reader = new NativeProcess(['powershell.exe', '-NoProfile', '-NonInteractive', '-Command',
+                    '(Get-FileHash -LiteralPath $env:CLONE_TEST_FILE -Algorithm SHA256 -ErrorAction Stop).Hash'],
+                    env: ['CLONE_TEST_FILE' => $path]);
+                $reader->run();
+                $this->assertSame(0, $reader->getExitCode(), $reader->getErrorOutput());
+                $this->assertSame(hash('sha256', 'backup-fixture'), strtolower(trim($reader->getOutput())));
+            }
+
+            return Process::result();
+        });
+
+        try {
+            app(ScheduledDatabaseClone::class)->run();
+            Process::assertRan(fn ($process) => in_array('-DownloadedBackup', $process->command, true));
+        } finally {
+            $downloadBody->close();
+            File::delete([$path, $path.'.part']);
+        }
+    }
+
     public function test_https_clone_downloads_backup_before_running_local_restore(): void
     {
         $path = $this->configureHttpsClone();
